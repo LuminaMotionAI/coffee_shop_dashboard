@@ -43,7 +43,7 @@
 
 1. 저장소 클론:
 ```
-git clone https://github.com/your-username/coffee-shop-revenue-dashboard.git
+git clone https://github.com/LuminaMotionAI/coffee_shop_dashboard.git
 ```
 
 2. 필요한 패키지 설치:
@@ -67,7 +67,7 @@ streamlit run app.py
 ## 온라인 데모
 
 Streamlit Cloud에서 실행 중인 라이브 데모를 확인하세요:
-[커피숍 매출 분석 대시보드](https://coffeeshopdashboard.streamlit.app/)
+[커피숍 매출 분석 대시보드](https://luminamotionai-coffee-shop-dashboard.streamlit.app)
 
 ## 개선 제안
 

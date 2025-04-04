@@ -1,6 +1,9 @@
 import streamlit as st
 import pandas as pd
 import numpy as np
+import plotly.express as px
+import plotly.graph_objects as go
+from plotly.subplots import make_subplots
 
 # 페이지 설정
 st.set_page_config(
@@ -65,16 +68,12 @@ def show_basic_stats(df):
         # 매출 분포 - 히스토그램으로 표시
         st.subheader("일일 매출 분포")
         
-        # 데이터 준비
-        hist_data = pd.DataFrame({
-            'values': df['Daily_Revenue'],
-            'count': 1
-        })
-        hist_data = hist_data.groupby(pd.cut(hist_data['values'], bins=20)).count().reset_index()
-        hist_data['values'] = hist_data['values'].astype(str)
-        
-        # 차트 표시
-        st.bar_chart(hist_data.set_index('values')['count'])
+        # Plotly 히스토그램 사용
+        fig = px.histogram(df, x='Daily_Revenue', nbins=20,
+                          labels={'Daily_Revenue': '일일 매출', 'count': '빈도'},
+                          title='일일 매출 분포')
+        fig.update_layout(xaxis_title='일일 매출', yaxis_title='빈도')
+        st.plotly_chart(fig, use_container_width=True)
     
     with col2:
         st.subheader("주요 지표")
@@ -90,7 +89,13 @@ def show_basic_stats(df):
         # 시간별 추세 (간소화된 버전)
         st.subheader("매출 추세")
         df_sample = df.iloc[::max(1, len(df)//100)].copy()  # 데이터 샘플링
-        st.line_chart(df_sample['Daily_Revenue'])
+        
+        # Plotly 라인 차트 사용
+        fig = px.line(df_sample, y='Daily_Revenue',
+                     labels={'index': '시간', 'Daily_Revenue': '일일 매출'},
+                     title='매출 추세')
+        fig.update_layout(xaxis_title='시간', yaxis_title='일일 매출($)')
+        st.plotly_chart(fig, use_container_width=True)
     
     st.markdown("---")
     st.subheader("📊 기본 통계 분석 인사이트")
@@ -118,58 +123,15 @@ def show_correlation_analysis(df):
     # 상관관계 계산
     corr_matrix = df.corr().round(2)
     
-    # 히트맵 표시
+    # Plotly 히트맵 사용
+    fig = px.imshow(corr_matrix, text_auto=True, aspect="auto",
+                   color_continuous_scale='RdBu_r', zmin=-1, zmax=1)
+    fig.update_layout(title='상관관계 히트맵')
+    
     col1, col2 = st.columns([3, 1])
     
     with col1:
-        # CSS를 이용한 히트맵 구현
-        corr_html = """
-        <style>
-        .dataframe-heatmap {
-            font-family: Arial, sans-serif;
-            border-collapse: collapse;
-            width: 100%;
-        }
-        .dataframe-heatmap th, .dataframe-heatmap td {
-            border: 1px solid #ddd;
-            padding: 8px;
-            text-align: center;
-        }
-        .dataframe-heatmap th {
-            background-color: #f2f2f2;
-            font-weight: bold;
-            color: #333;
-        }
-        </style>
-        <table class='dataframe-heatmap'>
-        """
-        
-        # 헤더 추가
-        corr_html += "<tr><th></th>"
-        for col in corr_matrix.columns:
-            corr_html += f"<th>{col}</th>"
-        corr_html += "</tr>"
-        
-        # 데이터 행 추가
-        for idx, row in corr_matrix.iterrows():
-            corr_html += f"<tr><th>{idx}</th>"
-            for val in row:
-                # 색상 설정
-                if val > 0:
-                    r = min(255, int(val * 255))
-                    g = min(255, int((1 - val) * 255))
-                    b = min(255, int((1 - val) * 255))
-                else:
-                    r = min(255, int((1 + val) * 255))
-                    g = min(255, int((1 + val) * 255))
-                    b = min(255, int(abs(val) * 255))
-                    
-                text_color = "white" if abs(val) > 0.5 else "black"
-                corr_html += f"<td style='background-color: rgb({r}, {g}, {b}); color: {text_color}'>{val}</td>"
-            corr_html += "</tr>"
-        
-        corr_html += "</table>"
-        st.write(corr_html, unsafe_allow_html=True)
+        st.plotly_chart(fig, use_container_width=True)
     
     with col2:
         # 상관관계 설명
@@ -190,27 +152,19 @@ def show_correlation_analysis(df):
     st.subheader("매출과의 상관관계")
     revenue_corr = df.corr()['Daily_Revenue'].sort_values(ascending=False)
     
-    # 상관관계 데이터 시각화
-    corr_df = pd.DataFrame({
-        '변수': revenue_corr.index,
-        '상관계수': revenue_corr.values
-    })
-    
-    # 차트 색상 설정
-    colors = []
-    for val in corr_df['상관계수']:
-        if val > 0:
-            opacity = min(1.0, abs(val) + 0.3)
-            colors.append(f'rgba(255, 99, 71, {opacity})')  # 양의 상관관계: 빨간색 계열
-        else:
-            opacity = min(1.0, abs(val) + 0.3)
-            colors.append(f'rgba(70, 130, 180, {opacity})')  # 음의 상관관계: 파란색 계열
-    
-    # 상관관계 차트 (가로 막대 그래프)
-    chart_data = pd.DataFrame({
-        '상관계수': revenue_corr.values
-    }, index=revenue_corr.index)
-    st.bar_chart(chart_data)
+    # Plotly 바 차트 사용
+    fig = px.bar(
+        x=revenue_corr.values,
+        y=revenue_corr.index,
+        orientation='h',
+        labels={'x': '상관계수', 'y': '변수'},
+        title='매출과의 상관관계',
+        color=revenue_corr.values,
+        color_continuous_scale='RdBu_r',
+        range_color=[-1, 1]
+    )
+    fig.update_layout(yaxis={'categoryorder':'total ascending'})
+    st.plotly_chart(fig, use_container_width=True)
     
     # 주요 변수와 매출의 관계
     st.subheader("주요 변수와 매출의 관계")
@@ -220,9 +174,16 @@ def show_correlation_analysis(df):
          'Marketing_Spend_Per_Day', 'Operating_Hours_Per_Day']
     )
     
-    # 산점도 차트
-    chart_data = df[[selected_feature, 'Daily_Revenue']]
-    st.scatter_chart(chart_data, x=selected_feature, y='Daily_Revenue')
+    # Plotly 산점도 사용
+    fig = px.scatter(
+        df, 
+        x=selected_feature, 
+        y='Daily_Revenue',
+        trendline='ols',
+        labels={selected_feature: selected_feature.replace('_', ' '), 'Daily_Revenue': '일일 매출($)'},
+        title=f"{selected_feature.replace('_', ' ')}와 일일 매출의 관계"
+    )
+    st.plotly_chart(fig, use_container_width=True)
     
     st.markdown("---")
     st.subheader("📊 상관관계 분석 인사이트")
@@ -270,13 +231,20 @@ def show_time_series_analysis(df):
     # 매출 추이
     st.subheader("일별 매출 추이")
     
-    # 차트 데이터 준비
-    chart_data = pd.DataFrame({
-        'Day': df_selected['Day'],
-        'Daily_Revenue': df_selected['Daily_Revenue']
-    }).set_index('Day')
-    
-    st.line_chart(chart_data)
+    # Plotly 라인 차트 사용
+    fig = px.line(
+        df_selected, 
+        x='Day', 
+        y='Daily_Revenue',
+        labels={'Day': '일', 'Daily_Revenue': '일일 매출($)'},
+        title='일별 매출 추이'
+    )
+    fig.update_layout(
+        xaxis_title='일',
+        yaxis_title='일일 매출($)',
+        hovermode='x unified'
+    )
+    st.plotly_chart(fig, use_container_width=True)
     
     # 이동평균
     window = st.slider('이동평균 기간', 3, min(30, len(df_selected)), 7)
@@ -286,14 +254,32 @@ def show_time_series_analysis(df):
     
     st.subheader(f"매출 추이와 {window}일 이동평균")
     
-    # 차트 데이터 준비
-    ma_chart_data = pd.DataFrame({
-        'Day': df_selected['Day'],
-        'Daily_Revenue': df_selected['Daily_Revenue'],
-        f'{window}일 이동평균': df_selected['MA']
-    }).set_index('Day')
-    
-    st.line_chart(ma_chart_data)
+    # Plotly로 이동평균 차트 생성
+    fig = go.Figure()
+    fig.add_trace(
+        go.Scatter(
+            x=df_selected['Day'],
+            y=df_selected['Daily_Revenue'],
+            mode='lines',
+            name='일일 매출'
+        )
+    )
+    fig.add_trace(
+        go.Scatter(
+            x=df_selected['Day'],
+            y=df_selected['MA'],
+            mode='lines',
+            name=f'{window}일 이동평균',
+            line=dict(width=3, color='rgba(255, 0, 0, 0.8)')
+        )
+    )
+    fig.update_layout(
+        title=f"매출 추이와 {window}일 이동평균",
+        xaxis_title='일',
+        yaxis_title='매출($)',
+        hovermode='x unified'
+    )
+    st.plotly_chart(fig, use_container_width=True)
     
     # 매출 변동성 분석
     st.subheader("매출 변동성 분석")
@@ -301,13 +287,19 @@ def show_time_series_analysis(df):
     # 표준편차를 이용한 변동성 시각화
     rolling_std = df_time['Daily_Revenue'].rolling(window=max(7, window//2)).std()
     
-    # 변동성 차트 데이터
-    volatility_data = pd.DataFrame({
-        'Day': df_time['Day'],
-        '7일 변동성 (표준편차)': rolling_std
-    }).set_index('Day')
-    
-    st.line_chart(volatility_data.iloc[start:end+1])
+    # Plotly로 변동성 차트 생성
+    fig = px.line(
+        x=df_time['Day'].iloc[max(7, window//2)-1:],
+        y=rolling_std.iloc[max(7, window//2)-1:],
+        labels={'x': '일', 'y': '7일 변동성 (표준편차)'},
+        title='매출 변동성 분석'
+    )
+    fig.update_layout(
+        xaxis_title='일',
+        yaxis_title='7일 변동성 (표준편차)',
+        hovermode='x unified'
+    )
+    st.plotly_chart(fig.update_xaxes(range=[start, end]), use_container_width=True)
     
     st.markdown("---")
     st.subheader("📊 시계열 분석 인사이트")
@@ -334,16 +326,16 @@ def show_feature_analysis(df):
     with col1:
         st.subheader("고객 수 분석")
         
-        # 히스토그램 데이터 준비
-        hist_data = pd.DataFrame({
-            'values': df['Number_of_Customers_Per_Day'],
-            'count': 1
-        })
-        hist_data = hist_data.groupby(pd.cut(hist_data['values'], bins=15)).count().reset_index()
-        hist_data['values'] = hist_data['values'].astype(str)
-        
-        # 차트 표시
-        st.bar_chart(hist_data.set_index('values')['count'])
+        # Plotly 히스토그램 사용
+        fig = px.histogram(
+            df, 
+            x='Number_of_Customers_Per_Day', 
+            nbins=15,
+            labels={'Number_of_Customers_Per_Day': '일일 고객 수', 'count': '빈도'},
+            title='일일 고객 수 분포'
+        )
+        fig.update_layout(xaxis_title='일일 고객 수', yaxis_title='빈도')
+        st.plotly_chart(fig, use_container_width=True)
         
         st.write("고객 수 통계:")
         st.dataframe(df['Number_of_Customers_Per_Day'].describe())
@@ -352,26 +344,49 @@ def show_feature_analysis(df):
         st.subheader("고객 수와 매출의 관계")
         customer_data = df[['Number_of_Customers_Per_Day', 'Daily_Revenue']].copy()
         
-        # 그룹화 및 평균 계산
-        customer_groups = pd.cut(customer_data['Number_of_Customers_Per_Day'], bins=5)
-        customer_revenue = customer_data.groupby(customer_groups)['Daily_Revenue'].mean().reset_index()
-        customer_revenue['Number_of_Customers_Per_Day'] = customer_revenue['Number_of_Customers_Per_Day'].astype(str)
+        # 그룹화 및 평균 계산 - Interval 객체 해결
+        bins = 5
+        bin_labels = [f'구간 {i+1}' for i in range(bins)]
         
-        st.bar_chart(customer_revenue.set_index('Number_of_Customers_Per_Day'))
+        # 수동으로 구간 경계 계산
+        min_customers = customer_data['Number_of_Customers_Per_Day'].min()
+        max_customers = customer_data['Number_of_Customers_Per_Day'].max()
+        bin_width = (max_customers - min_customers) / bins
+        
+        # 각 데이터 포인트에 구간 레이블 할당
+        customer_data['구간'] = pd.cut(
+            customer_data['Number_of_Customers_Per_Day'], 
+            bins=bins, 
+            labels=bin_labels
+        )
+        
+        # 구간별 평균 계산
+        customer_revenue = customer_data.groupby('구간')['Daily_Revenue'].mean().reset_index()
+        
+        # Plotly 바 차트 사용
+        fig = px.bar(
+            customer_revenue, 
+            x='구간', 
+            y='Daily_Revenue',
+            labels={'구간': '일일 고객 수 구간', 'Daily_Revenue': '평균 일일 매출($)'},
+            title='고객 수와 매출의 관계'
+        )
+        fig.update_layout(xaxis_title='일일 고객 수 구간', yaxis_title='평균 일일 매출($)')
+        st.plotly_chart(fig, use_container_width=True)
     
     with col2:
         st.subheader("평균 주문 금액 분석")
         
-        # 히스토그램 데이터 준비
-        hist_data = pd.DataFrame({
-            'values': df['Average_Order_Value'],
-            'count': 1
-        })
-        hist_data = hist_data.groupby(pd.cut(hist_data['values'], bins=15)).count().reset_index()
-        hist_data['values'] = hist_data['values'].astype(str)
-        
-        # 차트 표시
-        st.bar_chart(hist_data.set_index('values')['count'])
+        # Plotly 히스토그램 사용
+        fig = px.histogram(
+            df, 
+            x='Average_Order_Value', 
+            nbins=15,
+            labels={'Average_Order_Value': '평균 주문 금액($)', 'count': '빈도'},
+            title='평균 주문 금액 분포'
+        )
+        fig.update_layout(xaxis_title='평균 주문 금액($)', yaxis_title='빈도')
+        st.plotly_chart(fig, use_container_width=True)
         
         st.write("평균 주문 금액 통계:")
         st.dataframe(df['Average_Order_Value'].describe())
@@ -380,12 +395,34 @@ def show_feature_analysis(df):
         st.subheader("주문 금액과 매출의 관계")
         order_data = df[['Average_Order_Value', 'Daily_Revenue']].copy()
         
-        # 그룹화 및 평균 계산
-        order_groups = pd.cut(order_data['Average_Order_Value'], bins=5)
-        order_revenue = order_data.groupby(order_groups)['Daily_Revenue'].mean().reset_index()
-        order_revenue['Average_Order_Value'] = order_revenue['Average_Order_Value'].astype(str)
+        # 그룹화 및 평균 계산 - Interval 객체 해결
+        bins = 5
+        bin_labels = [f'구간 {i+1}' for i in range(bins)]
         
-        st.bar_chart(order_revenue.set_index('Average_Order_Value'))
+        # 수동으로 구간 경계 계산
+        min_order = order_data['Average_Order_Value'].min()
+        max_order = order_data['Average_Order_Value'].max()
+        
+        # 각 데이터 포인트에 구간 레이블 할당
+        order_data['구간'] = pd.cut(
+            order_data['Average_Order_Value'], 
+            bins=bins, 
+            labels=bin_labels
+        )
+        
+        # 구간별 평균 계산
+        order_revenue = order_data.groupby('구간')['Daily_Revenue'].mean().reset_index()
+        
+        # Plotly 바 차트 사용
+        fig = px.bar(
+            order_revenue, 
+            x='구간', 
+            y='Daily_Revenue',
+            labels={'구간': '평균 주문 금액 구간($)', 'Daily_Revenue': '평균 일일 매출($)'},
+            title='주문 금액과 매출의 관계'
+        )
+        fig.update_layout(xaxis_title='평균 주문 금액 구간($)', yaxis_title='평균 일일 매출($)')
+        st.plotly_chart(fig, use_container_width=True)
     
     # 주요 변수 비교 분석
     st.subheader("주요 변수 비교 분석")
@@ -405,8 +442,26 @@ def show_feature_analysis(df):
         for feature in features:
             df_norm[feature] = (df_norm[feature] - df_norm[feature].min()) / (df_norm[feature].max() - df_norm[feature].min())
         
-        # 그래프 표시
-        st.line_chart(df_norm.iloc[::max(1, len(df_norm)//100)])
+        # Plotly 라인 차트 사용
+        df_norm_sample = df_norm.iloc[::max(1, len(df_norm)//100)].reset_index()
+        
+        fig = go.Figure()
+        for feature in features:
+            fig.add_trace(
+                go.Scatter(
+                    x=df_norm_sample['index'],
+                    y=df_norm_sample[feature],
+                    mode='lines',
+                    name=feature.replace('_', ' ')
+                )
+            )
+        fig.update_layout(
+            title='주요 변수 비교 분석 (정규화)',
+            xaxis_title='시간',
+            yaxis_title='정규화된 값',
+            hovermode='x unified'
+        )
+        st.plotly_chart(fig, use_container_width=True)
     
     st.markdown("---")
     st.subheader("📊 특성 분석 인사이트")

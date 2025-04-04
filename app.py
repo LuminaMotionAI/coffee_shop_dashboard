@@ -1,33 +1,7 @@
 import streamlit as st
 import pandas as pd
 import numpy as np
-try:
-    import matplotlib
-    matplotlib.use('Agg')  # Streamlit과 호환되는 백엔드 사용
-    import matplotlib.pyplot as plt
-    import seaborn as sns
-except ImportError:
-    st.error("matplotlib 또는 seaborn 라이브러리를 불러오는 데 문제가 발생했습니다.")
-    st.info("대체 시각화를 사용합니다.")
-    import plotly.express as px
-    plt = None
-    sns = None
-
 from pathlib import Path
-import platform
-
-# 한글 폰트 설정 - 시스템에 따라 안전하게 처리
-try:
-    if platform.system() == 'Darwin':  # macOS
-        matplotlib.rcParams['font.family'] = 'AppleGothic'
-    elif platform.system() == 'Windows':  # Windows
-        matplotlib.rcParams['font.family'] = 'Malgun Gothic'
-    else:
-        matplotlib.rcParams['font.family'] = 'DejaVu Sans'
-        
-    matplotlib.rcParams['axes.unicode_minus'] = False  # 마이너스 부호 깨짐 방지
-except:
-    st.warning("폰트 설정에 문제가 발생했습니다. 기본 폰트를 사용합니다.")
 
 # 페이지 설정
 st.set_page_config(
@@ -59,22 +33,6 @@ def load_data():
         st.error(f"데이터 로드 중 오류 발생: {str(e)}")
         return None
 
-# 대체 시각화 함수 (matplotlib 불러오기 실패 시 사용)
-def plot_alternative(data, x=None, y=None, kind='scatter', title=None):
-    """plotly를 사용한 대체 시각화 함수"""
-    if kind == 'hist':
-        fig = px.histogram(data, x=x, title=title)
-    elif kind == 'scatter':
-        fig = px.scatter(data, x=x, y=y, title=title)
-    elif kind == 'line':
-        fig = px.line(data, x=x, y=y, title=title)
-    elif kind == 'heatmap':
-        fig = px.imshow(data, text_auto=True, aspect="auto", title=title)
-    else:
-        fig = px.scatter(data, x=x, y=y, title=title)
-    
-    return fig
-
 # 메인 함수
 def main():
     st.title("☕ 커피숍 매출 분석 대시보드")
@@ -102,14 +60,8 @@ def main():
             st.write(df['Daily_Revenue'].describe())
             
             # 매출 분포
-            if plt and sns:
-                fig, ax = plt.subplots(figsize=(10, 6))
-                sns.histplot(data=df, x='Daily_Revenue', bins=30)
-                plt.title('일일 매출 분포')
-                st.pyplot(fig)
-            else:
-                fig = plot_alternative(df, x='Daily_Revenue', kind='hist', title='일일 매출 분포')
-                st.plotly_chart(fig)
+            st.subheader("일일 매출 분포")
+            st.line_chart(df['Daily_Revenue'])
         
         with col2:
             st.subheader("주요 지표")
@@ -144,15 +96,9 @@ def main():
     elif analysis_type == "상관관계 분석":
         st.header("상관관계 분석")
         
-        # 상관관계 히트맵
-        if plt and sns:
-            fig, ax = plt.subplots(figsize=(12, 8))
-            sns.heatmap(df.corr(), annot=True, cmap='coolwarm', center=0)
-            plt.title('변수 간 상관관계')
-            st.pyplot(fig)
-        else:
-            fig = plot_alternative(df.corr(), kind='heatmap', title='변수 간 상관관계')
-            st.plotly_chart(fig)
+        # 상관관계 표
+        st.subheader("변수 간 상관관계")
+        st.write(df.corr())
         
         # 매출과의 상관관계
         st.subheader("매출과의 상관관계")
@@ -167,14 +113,9 @@ def main():
              'Marketing_Spend_Per_Day', 'Operating_Hours_Per_Day']
         )
         
-        if plt and sns:
-            fig, ax = plt.subplots(figsize=(10, 6))
-            sns.scatterplot(data=df, x=selected_feature, y='Daily_Revenue')
-            plt.title(f'{selected_feature}와 매출의 관계')
-            st.pyplot(fig)
-        else:
-            fig = plot_alternative(df, x=selected_feature, y='Daily_Revenue', kind='scatter', title=f'{selected_feature}와 매출의 관계')
-            st.plotly_chart(fig)
+        # 산점도 대신 차트 데이터 준비
+        chart_data = df[[selected_feature, 'Daily_Revenue']]
+        st.scatter_chart(chart_data, x=selected_feature, y='Daily_Revenue')
         
         # 인사이트 추가
         st.markdown("---")
@@ -206,32 +147,15 @@ def main():
         st.header("시계열 분석")
         
         # 매출 추이
-        if plt:
-            fig, ax = plt.subplots(figsize=(15, 6))
-            plt.plot(df.index, df['Daily_Revenue'])
-            plt.title('일별 매출 추이')
-            plt.xlabel('일자')
-            plt.ylabel('매출')
-            st.pyplot(fig)
-        else:
-            fig = plot_alternative(df, x=df.index, y='Daily_Revenue', kind='line', title='일별 매출 추이')
-            st.plotly_chart(fig)
+        st.subheader("일별 매출 추이")
+        st.line_chart(df['Daily_Revenue'])
         
         # 이동평균
         window = st.slider('이동평균 기간', 7, 30, 7)
         df['MA'] = df['Daily_Revenue'].rolling(window=window).mean()
         
-        if plt:
-            fig, ax = plt.subplots(figsize=(15, 6))
-            plt.plot(df.index, df['Daily_Revenue'], label='일별 매출')
-            plt.plot(df.index, df['MA'], label=f'{window}일 이동평균')
-            plt.title('매출 추이와 이동평균')
-            plt.legend()
-            st.pyplot(fig)
-        else:
-            fig = px.line(df, x=df.index, y=['Daily_Revenue', 'MA'], title='매출 추이와 이동평균')
-            fig.update_layout(legend_title_text='데이터')
-            st.plotly_chart(fig)
+        st.subheader("매출 추이와 이동평균")
+        st.line_chart(df[['Daily_Revenue', 'MA']])
         
         # 인사이트 추가
         st.markdown("---")
@@ -259,28 +183,14 @@ def main():
         
         with col1:
             st.subheader("고객 수 분석")
-            if plt and sns:
-                fig, ax = plt.subplots(figsize=(10, 6))
-                sns.histplot(data=df, x='Number_of_Customers_Per_Day', bins=30)
-                plt.title('일일 고객 수 분포')
-                st.pyplot(fig)
-            else:
-                fig = plot_alternative(df, x='Number_of_Customers_Per_Day', kind='hist', title='일일 고객 수 분포')
-                st.plotly_chart(fig)
+            st.bar_chart(df['Number_of_Customers_Per_Day'])
             
             st.write("고객 수 통계:")
             st.write(df['Number_of_Customers_Per_Day'].describe())
         
         with col2:
             st.subheader("평균 주문 금액 분석")
-            if plt and sns:
-                fig, ax = plt.subplots(figsize=(10, 6))
-                sns.histplot(data=df, x='Average_Order_Value', bins=30)
-                plt.title('평균 주문 금액 분포')
-                st.pyplot(fig)
-            else:
-                fig = plot_alternative(df, x='Average_Order_Value', kind='hist', title='평균 주문 금액 분포')
-                st.plotly_chart(fig)
+            st.bar_chart(df['Average_Order_Value'])
             
             st.write("평균 주문 금액 통계:")
             st.write(df['Average_Order_Value'].describe())
